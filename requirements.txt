@@ -1,3 +1,5 @@
-tensorflow
 gradio
+tensorflow
 nltk
+requests
+beautifulsoup4
