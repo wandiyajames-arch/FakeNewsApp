@@ -1,4 +1,4 @@
-S# 📰 Digital Content Verification System
+# 📰 Digital Content Verification System
 
 ### **Deep Learning for Automated Fact-Checking**
 
