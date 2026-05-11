@@ -229,7 +229,7 @@ The model was trained and evaluated on the **WELFake dataset**, which aggregates
 **MSc Student — Big Data & Data Science**
 **African Institute for Mathematical Sciences (AIMS), Senegal**
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/YOUR-LINKEDIN-HERE)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://https://www.linkedin.com/in/james-wandiya-87b90912a)
 [![Hugging Face](https://img.shields.io/badge/🤗-wandiya39-FFD21E?style=for-the-badge)](https://huggingface.co/wandiya39)
 [![GitHub](https://img.shields.io/badge/GitHub-Follow-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/wandiya39)
 
