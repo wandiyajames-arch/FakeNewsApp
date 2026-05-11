@@ -1,10 +1,4 @@
-Since you’ve already done the hard work of building the model and setting up the CI/CD pipeline, your README should reflect that high level of engineering. A professional README acts as your project's "front door"—it’s the first thing recruiters and professors see.
-
-Here is a polished, professional version for your repository.
-
----
-
-# 📰 Digital Content Verification System
+S# 📰 Digital Content Verification System
 
 ### **Deep Learning for Automated Fact-Checking**
 
