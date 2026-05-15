@@ -8,37 +8,33 @@ from nltk.corpus import stopwords
 import requests
 from bs4 import BeautifulSoup
 import os
+from pypdf import PdfReader
 
 # ---------------------------------------------------------
 # 0. Auto-Generate Sample Files for the Upload Tab
-# This ensures the files exist on Hugging Face automatically!
 # ---------------------------------------------------------
-with open("sample_real_news.txt", "w", encoding="utf-8") as f:
-    f.write("The United Nations held a summit in New York today to discuss global climate change initiatives. Leaders from over 50 countries signed a new agreement aiming to reduce carbon emissions by 20% over the next decade.")
+def generate_samples():
+    with open("sample_real_news.txt", "w", encoding="utf-8") as f:
+        f.write("The United Nations held a summit in New York today to discuss global climate change initiatives. Leaders from over 50 countries signed a new agreement aiming to reduce carbon emissions by 20% over the next decade.")
 
-with open("sample_fake_news.txt", "w", encoding="utf-8") as f:
-    f.write("BREAKING: The moon has declared independence from Earth and is now an autonomous space collective, demanding immediate entry into the interstellar council. A team of astronauts has been detained as leverage.")
+    with open("sample_fake_news.txt", "w", encoding="utf-8") as f:
+        f.write("BREAKING: The moon has declared independence from Earth and is now an autonomous space collective, demanding immediate entry into the interstellar council. A team of astronauts has been detained as leverage.")
+
+generate_samples()
 
 # ---------------------------------------------------------
-# 1. Setup NLTK
+# 1. Setup & Load Model
 # ---------------------------------------------------------
 nltk.download('stopwords', quiet=True)
 stop_words = set(stopwords.words('english'))
 
 print("Loading Deep Learning Model and Tokenizer...")
-
-# ---------------------------------------------------------
-# 2. Load the Model and Tokenizer
-# ---------------------------------------------------------
 model = tf.keras.models.load_model('welfake_lstm_model.h5')
 with open('tokenizer.pkl', 'rb') as handle:
     tokenizer = pickle.load(handle)
 
 MAX_LEN = 300 
 
-# ---------------------------------------------------------
-# 3. Text Cleaning
-# ---------------------------------------------------------
 def preprocess_text(text):
     text = str(text).lower()
     text = re.sub(r'[^a-z\s]', '', text)
@@ -46,160 +42,137 @@ def preprocess_text(text):
     return " ".join(words)
 
 # ---------------------------------------------------------
-# 4. Core Analysis Logic
+# 2. Logic Functions
 # ---------------------------------------------------------
 def analyze_news(article_text):
-    if len(article_text.strip().split()) < 10:
-        return (
-            "⚠️ Error: Provide More Input",
-            "The system requires at least a few sentences (minimum 10 words) to accurately analyze linguistic patterns."
-        )
+    if not article_text or len(article_text.strip().split()) < 10:
+        return "⚠️ Insufficient Input", "The LSTM requires at least 10 words to analyze sequential patterns."
         
     cleaned = preprocess_text(article_text)
     seq = tokenizer.texts_to_sequences([cleaned])
     padded = pad_sequences(seq, maxlen=MAX_LEN)
-    
     prediction = model.predict(padded, verbose=0)[0][0]
     
     if prediction > 0.5:
-        confidence = prediction * 100
-        classification = f"🚨 FAKE NEWS"
-        analysis = f"The Deep Learning model is {confidence:.1f}% confident that this text contains fabricated or manipulative linguistic patterns."
+        return "🚨 FAKE NEWS", f"Confidence: {prediction*100:.2f}%\nAnalysis: The LSTM identified manipulative linguistic patterns characteristic of misinformation."
     else:
-        confidence = (1 - prediction) * 100
-        classification = f"✅ REAL NEWS"
-        analysis = f"The Deep Learning model is {confidence:.1f}% confident that this text aligns with the standard, factual style of professional journalism."
-        
-    return classification, analysis
+        return "✅ REAL NEWS", f"Confidence: {(1-prediction)*100:.2f}%\nAnalysis: The text aligns with the structural and narrative style of factual journalism."
 
-# ---------------------------------------------------------
-# 5. Helper Functions for New Inputs
-# ---------------------------------------------------------
 def process_url(url):
-    if not url.strip().startswith("http"):
-        return "⚠️ Error: Invalid URL", "Please provide a complete web address starting with http:// or https://"
     try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(url, headers=headers, timeout=10)
         soup = BeautifulSoup(response.content, 'html.parser')
-        
-        paragraphs = soup.find_all('p')
-        article_text = ' '.join([p.get_text() for p in paragraphs])
-        
-        if not article_text.strip():
-            return "⚠️ Error: Extraction Failed", "Could not find readable article text on this webpage."
-            
-        return analyze_news(article_text)
-    except Exception as e:
-        return "⚠️ Error: Connection Failed", "Could not reach the website. The site may be protected against automated scrapers."
+        text = ' '.join([p.get_text() for p in soup.find_all('p')])
+        return analyze_news(text)
+    except:
+        return "⚠️ Error", "Failed to extract text from URL. The site may be protected."
 
-def process_file(file_path):
-    if file_path is None:
-        return "⚠️ Error: No File", "Please upload a document."
+def process_file(file):
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            article_text = f.read()
-        return analyze_news(article_text)
-    except Exception as e:
-        return "⚠️ Error: Unreadable File", "Could not read the file. Please ensure it is a standard .txt document."
+        ext = os.path.splitext(file.name)[1].lower()
+        if ext == ".pdf":
+            reader = PdfReader(file.name)
+            text = " ".join([page.extract_text() for page in reader.pages])
+        else:
+            with open(file.name, 'r', encoding='utf-8') as f:
+                text = f.read()
+        return analyze_news(text)
+    except:
+        return "⚠️ Error", "Failed to process the uploaded file."
 
 # ---------------------------------------------------------
-# 6. Build the Tabbed UI with Examples
+# 3. Attractive UI Construction
 # ---------------------------------------------------------
 custom_css = """
-.result_textbox textarea { font-size: 20px !important; font-weight: bold !important; }
-.result_real textarea { border: 2px solid #22c55e !important; background-color: #f0fdf4 !important; color: #166534 !important; }
-.result_fake textarea { border: 2px solid #ef4444 !important; background-color: #fef2f2 !important; color: #991b1b !important; }
+#header { text-align: center; padding: 25px; background: linear-gradient(90deg, #0c4a6e, #0284c7); color: white; border-radius: 12px; margin-bottom: 25px; }
+.verdict_box textarea { font-size: 26px !important; text-align: center !important; font-weight: bold !important; }
+.result_real textarea { color: #16a34a !important; border: 3px solid #16a34a !important; background: #f0fdf4 !important; }
+.result_fake textarea { color: #dc2626 !important; border: 3px solid #dc2626 !important; background: #fef2f2 !important; }
+footer {display: none !important;}
 """
 
-with gr.Blocks(theme=gr.themes.Soft(primary_hue="sky"), css=custom_css) as interface:
-    
-    gr.Markdown(
-        """
-        # 📰 Digital Content Verification System
-        **MSc Project:** This Deep Learning framework utilizes Long Short-Term Memory (LSTM) networks to analyze the veracity of news articles.
-        """
-    )
-    
-    # --- INPUT TABS ---
-    with gr.Tabs():
-        
-        # TAB 1: Paste Text
-        with gr.TabItem("📝 Paste Text"):
-            text_input = gr.Textbox(
-                lines=6, label="Paste the news article here:", 
-                placeholder="Minimum 10 words required..."
-            )
-            gr.Examples(
-                examples=[
-                    ["The United Nations held a summit in New York today to discuss global climate change initiatives. Leaders from over 50 countries signed a new agreement aiming to reduce carbon emissions by 20% over the next decade."],
-                    ["BREAKING: Anonymous whistleblowers inside the World Economic Forum have leaked documents proving that all tap water in major cities will be replaced with a synthetic mind-control serum by the year 2028."]
-                ],
-                inputs=text_input,
-                label="💡 Click an example to auto-fill:"
-            )
-            text_btn = gr.Button("🔍 Analyze Text", variant="primary")
+with gr.Blocks(title="AIMS Digital Verifier") as interface:
+    # --- Header ---
+    gr.HTML("""
+        <div id='header'>
+            <h1>📰 Digital Content Verification System</h1>
+            <p>Misinformation Detection powered by Deep Learning (LSTM)</p>
+        </div>
+    """)
+
+    with gr.Row():
+        # --- LEFT COLUMN ---
+        with gr.Column(scale=2):
+            with gr.Accordion("📖 Technical Methodology", open=False):
+                gr.Markdown("""
+                This system utilizes a **Long Short-Term Memory (LSTM)** neural network. 
+                Unlike classical models, LSTMs retain 'memory' of previous words in a sequence, 
+                allowing the system to detect subtle manipulative rhetoric and sensationalist narrative flows.
+                """)
+
+            with gr.Tabs():
+                with gr.TabItem("📝 Text Analysis"):
+                    text_input = gr.Textbox(label="Article Content", placeholder="Paste content here...", lines=8)
+                    # Added Text Examples back
+                    gr.Examples(
+                        examples=[
+                            ["The United Nations held a summit in New York today to discuss global climate change initiatives. Leaders from over 50 countries signed a new agreement."],
+                            ["BREAKING: Scientists have discovered that eating chocolate every day actually makes you immortal, but only if you eat it while standing on one leg."]
+                        ],
+                        inputs=text_input,
+                        label="💡 Sample Texts"
+                    )
+                    text_btn = gr.Button("Analyze Content", variant="primary")
+
+                with gr.TabItem("🔗 URL Scraper"):
+                    url_input = gr.Textbox(label="Article Link", placeholder="https://www.bbc.com/news/...")
+                    gr.Examples(
+                        examples=[["https://news.un.org/en/story/2024/02/1146602"]],
+                        inputs=url_input,
+                        label="💡 Sample URL"
+                    )
+                    url_btn = gr.Button("Scrape & Analyze", variant="primary")
+
+                with gr.TabItem("📄 File Upload"):
+                    file_input = gr.File(label="Upload News (.txt or .pdf)", file_types=[".txt", ".pdf"])
+                    # Added File Examples back
+                    gr.Examples(
+                        examples=[["sample_real_news.txt"], ["sample_fake_news.txt"]],
+                        inputs=file_input,
+                        label="💡 Sample Files"
+                    )
+                    file_btn = gr.Button("Analyze Document", variant="primary")
+
+        # --- RIGHT COLUMN ---
+        with gr.Column(scale=1):
+            gr.Markdown("### 🔍 Analysis Result")
+            verdict = gr.Textbox(label="Classification", interactive=False, elem_classes=["verdict_box"])
+            details = gr.Textbox(label="Confidence & Logic Analysis", interactive=False, lines=5)
             
-        # TAB 2: URL Link
-      # TAB 2: URL Link
-        with gr.TabItem("🔗 Submit URL"):
-            url_input = gr.Textbox(
-                lines=1, label="Paste a link to a news article:", 
-                placeholder="https://www.bbc.com/news/..."
-            )
-            # --- NEW SPECIFIC EXAMPLES ADDED HERE ---
-            gr.Examples(
-                examples=[
-                    ["https://news.un.org/en/story/2024/02/1146602"], # Real, stable UN News article
-                    ["https://www.theonion.com/study-finds-every-style-of-parenting-produces-terrible-1819575895"] # Fake/Satire article
-                ],
-                inputs=url_input,
-                label="💡 Click an example URL to auto-fill:"
-            )
-            gr.Markdown("*Note: The system will automatically scrape the paragraph text from the webpage.*")
-            url_btn = gr.Button("🔍 Scrape and Analyze Link", variant="primary")
-            
-        # TAB 3: File Upload
-        with gr.TabItem("📄 Upload Document"):
-            file_input = gr.File(
-                label="Upload a plain text document (.txt)", 
-                file_types=[".txt"]
-            )
-            gr.Examples(
-                examples=[
-                    ["sample_real_news.txt"],
-                    ["sample_fake_news.txt"]
-                ],
-                inputs=file_input,
-                label="💡 Click an example file to auto-upload:"
-            )
-            file_btn = gr.Button("🔍 Analyze Document", variant="primary")
+            gr.Markdown("---")
+            gr.Markdown("""
+            **Academic Context:**
+            - **Institution:** AIMS Senegal
+            - **Model:** LSTM Neural Network
+            - **Target Precision:** 97.12%
+            - **Dataset:** WELFake (72,134 samples)
+            """)
 
-    # --- RESULTS SECTION ---
-    gr.Markdown("---")
-    with gr.Group():
-        gr.Markdown("### 📊 Classification & Linguistic Analysis")
-        with gr.Row():
-            verdict_output = gr.Textbox(label="System Classification", interactive=False)
-            explanation_output = gr.Textbox(label="Linguistic Pattern Analysis", interactive=False)
+    # Styling Logic
+    def style_verdict(v):
+        if "REAL" in v: return gr.update(elem_classes=["verdict_box", "result_real"])
+        if "FAKE" in v: return gr.update(elem_classes=["verdict_box", "result_fake"])
+        return gr.update(elem_classes=["verdict_box"])
 
-    # Function to update styling
-    def apply_result_styling(verdict):
-        if "REAL" in verdict:
-            return gr.update(elem_classes=["result_textbox", "result_real"])
-        elif "FAKE" in verdict:
-            return gr.update(elem_classes=["result_textbox", "result_fake"])
-        return gr.update(elem_classes=[])
+    # Handlers
+    text_btn.click(analyze_news, inputs=text_input, outputs=[verdict, details]).then(style_verdict, verdict, verdict)
+    url_btn.click(process_url, inputs=url_input, outputs=[verdict, details]).then(style_verdict, verdict, verdict)
+    file_btn.click(process_file, inputs=file_input, outputs=[verdict, details]).then(style_verdict, verdict, verdict)
 
-    # Connect buttons
-    text_btn.click(fn=analyze_news, inputs=text_input, outputs=[verdict_output, explanation_output]) \
-        .then(fn=apply_result_styling, inputs=verdict_output, outputs=verdict_output)
-        
-    url_btn.click(fn=process_url, inputs=url_input, outputs=[verdict_output, explanation_output]) \
-        .then(fn=apply_result_styling, inputs=verdict_output, outputs=verdict_output)
-        
-    file_btn.click(fn=process_file, inputs=file_input, outputs=[verdict_output, explanation_output]) \
-        .then(fn=apply_result_styling, inputs=verdict_output, outputs=verdict_output)
-
+# Launch
 if __name__ == "__main__":
-    interface.launch()
+    interface.launch(
+        theme=gr.themes.Soft(primary_hue="sky", secondary_hue="slate"),
+        css=custom_css
+    )
